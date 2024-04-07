@@ -13,8 +13,6 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 
 load_dotenv()
 
-def get_response(user_input):
-    return "Hey mate"
 
 def get_vectorstore_from_url(url):
     #get the text in document format
@@ -31,7 +29,7 @@ def get_vectorstore_from_url(url):
     return vector_store
 
 def get_context_retriever_chain(vector_store):
-    llm = ChatOpenAI
+    llm = ChatOpenAI()
 
     retriever = vector_store.as_retriever()
 
@@ -42,13 +40,13 @@ def get_context_retriever_chain(vector_store):
 
     ])
 
-    retriever_chain = create_history_aware_retriever( llm, retriever, prompt)
+    retriever_chain = create_history_aware_retriever(llm, retriever, prompt)
 
     return retriever_chain
 
 def get_conversational_rag_chain(retriever_chain):
 
-    llm = ChatOpenAI
+    llm = ChatOpenAI()
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", "Answer the user's question based on the context below:\n\n{context}"),
@@ -60,12 +58,21 @@ def get_conversational_rag_chain(retriever_chain):
 
     return create_retrieval_chain(retriever_chain, stuff_documents_chain)
 
+def get_response(user_input):
+    retriever_chain = get_context_retriever_chain(st.session_state.vector_store)
+    conversation_rag_chain = get_conversational_rag_chain(retriever_chain)
+
+    response = conversation_rag_chain.invoke({
+        "chat_history": st.session_state.chat_history,
+        "input": user_input
+    })
+
+    return response["answer"]
+
 
 # app config
-st.set_page_config(page_title="AO chatbot")
-st.title ("AOOO")
-
-
+st.set_page_config(page_title="Chat with websites", page_icon="🤖")
+st.title("Chat with websites")
 
 # sidebar
 with st.sidebar:
@@ -73,45 +80,25 @@ with st.sidebar:
     website_url = st.text_input("Website URL")
 
 if website_url is None or website_url == "":
-    st.info("Nope, sorry") 
+    st.info("Please enter a website URL")
 
 else:
-    #session state
+    # session state
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = [
-            AIMessage(content= "Hey, lets start your journey"),
+            AIMessage(content="Hello, I am a bot. How can I help you?"),
         ]
-    if  "vector_store" not in st.session_state:
-        st.session_state.vector_store = get_vectorstore_from_url(website_url)
+    if "vector_store" not in st.session_state:
+        st.session_state.vector_store = get_vectorstore_from_url(website_url)    
 
-
-    #create conversation chain
-    retriever_chain = get_context_retriever_chain(st.session_state.vector_store)
-
-    conversation_rag_chain = get_conversational_rag_chain(retriever_chain)
-
-    # user input  
-    user_query = st.chat_input("Welcome to AO chatbot")
-    if user_query is not None and user_query != "": 
-
-        #response = get_response(user_query)
-        response = conversation_rag_chain.invoke({
-            "chat_history": st.session_state.chat_history,
-            "input": user_query  
-        })
-        st.write(response)
-       # st.session_state.chat_history.append(HumanMessage(content=user_query))
-       # st.session_state.chat_history.append(AIMessage(content=response))
-
+    # user input
+    user_query = st.chat_input("Type your message here...")
+    if user_query is not None and user_query != "":
+        response = get_response(user_query)
+        st.session_state.chat_history.append(HumanMessage(content=user_query))
+        st.session_state.chat_history.append(AIMessage(content=response))
         
-   #     retrieved_documents = retriever_chain.invoke({
-   #         "chat_history": st.session_state.chat_history,
-   #         "input": user_query
-   #     })
-   #     st.write(retrieved_documents)
        
-
-
 
     # conversation
     for message in st.session_state.chat_history:
